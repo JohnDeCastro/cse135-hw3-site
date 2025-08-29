@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>John De Castro - About Me</title>
+
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@1.5.10/css/pico.min.css">
+</head>
+<body>
+    <main class="container">
+        <h1>John De Castro</h1>
+        <p>Veteran, First Generation Student, Aspiring Developer</p>
+        <p>Hostname: <strong><script>document.write(location.hostname)</script></strong></p>
+        <p>Last updated @ <span id="ts"></span></p>
+    </main>
+    <script>document.getElementById('ts').textContent = new Date().toString();</script>
+</body>
+</html>

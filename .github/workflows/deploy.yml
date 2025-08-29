@@ -1,0 +1,49 @@
+name: Deploy to Droplet
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # Reuse existing private key via ssh-agent
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add droplet to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts
+
+      # --- CHANGED: rsync flags + excludes to avoid perms/owner/time issues ---
+      - name: Rsync to server (no perms/owners/times)
+        run: |
+          rsync -rlz --delete \
+            --no-perms --no-owner --no-group --no-times \
+            --exclude ".git/" \
+            --exclude ".github/" \
+            --exclude "hw2/screenshots/" \
+            --exclude "cgi-bin/py/sessions/" \
+            --exclude "cgi-bin/c/**" \
+            -e 'ssh -o StrictHostKeyChecking=no' \
+            ./ "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.SERVER_PATH }}/"
+
+      # Ensure any runtime session dir exists and is writable
+      - name: Ensure runtime session dir exists (and writable)
+        run: |
+          ssh -o StrictHostKeyChecking=no "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" \
+            "mkdir -p '${{ secrets.SERVER_PATH }}/cgi-bin/py/sessions' && chmod 777 '${{ secrets.SERVER_PATH }}/cgi-bin/py/sessions' || true"
+
+      # Ensure CGI executables are runnable after upload
+      - name: Make CGI executables runnable
+        run: |
+          ssh -o StrictHostKeyChecking=no "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" \
+            "find '${{ secrets.SERVER_PATH }}/cgi-bin/perl' -type f -name '*.pl'  -exec chmod 755 {} + 2>/dev/null || true; \
+             find '${{ secrets.SERVER_PATH }}/cgi-bin/c'    -type f -name '*.cgi' -exec chmod 755 {} + 2>/dev/null || true"
