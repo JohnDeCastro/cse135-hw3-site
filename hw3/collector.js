@@ -10,7 +10,11 @@
     // enqueue-only push
     function pushEvt(type, payload) {
         const evt = {
-            sessionId: (window.__SESSION_ID ||= (crypto.randomUUID?.() || (Date.now()+'-'+Math.random().toString(16).slice(2)))),
+            sessionId: (window.__SESSION_ID ||= (sessionStorage.getItem('sid') || (()=>{
+                const s = (crypto.randomUUID?.() || (Date.now()+'-'+Math.random().toString(16).slice(2)));
+                try { sessionStorage.setItem('sid', s); } catch {}
+                return s;
+            })())),
             type,
             ts: Date.now(),
             page: location.pathname + location.search + location.hash,
@@ -71,6 +75,32 @@
         if (document.visibilityState === 'hidden') flush(50, true);
     });
     window.addEventListener('beforeunload', () => { flush(50, true); });
+
+    // manual CSS and images detection
+    (function() {
+        // CSS: create element, style via JS, and esnure style application
+        const el = document.createElement('div');
+        el.style.position = 'absolute';
+        el.style.left = '-9999px';
+        el.style.width = '10px';
+        document.body.appendChild(el);
+        const cssEnabled = getComputedStyle(el).width === '10px';
+        document.body.removeChild(el);
+
+        // Images: attemp to load tiny 1x1 data image
+        const imgTest = new Image();
+        let imagesEnabled = true;
+        imgTest.onerror = () => { imagesEnabled = false; pushEvt('static', { featureProbe: 'images', imagesEnabled }); };
+        imgTest.onload  = () => { imagesEnabled = true;  pushEvt('static', { featureProbe: 'images', imagesEnabled }); };
+        imgTest.src = 'data:image/gif;base64,R0lGODlhAQABAAAAACw='; // 1x1 gif
+
+        // explicit JS flag (collector exists)
+        const jsEnabled = true;
+
+        // record snapshot
+        pushEvt('static', { featureProbe: 'css/js', cssEnabled, jsEnabled });
+    })();
+
 
     // static
     window.addEventListener('load', () => {
