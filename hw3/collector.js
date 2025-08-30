@@ -11,6 +11,7 @@
         });
     };
 
+    // static
     window.addEventListener('load', () => {
         pushEvt('static', {
             ua: navigator.userAgent,
@@ -25,6 +26,7 @@
         });
     });
 
+    //performance
     window.addEventListener('load', () => {
         const nav = performance.getEntriesByType('navigation')[0];
         pushEvt('perf', {
@@ -35,6 +37,7 @@
         });
     });
     
+    //activity ie. mouse movements, clicks, scrolls, etc
     let __lastMove = 0;
     document.addEventListener('mousemove', (e) => {
         const now = Date.now();
@@ -54,8 +57,23 @@
     document.addEventListener('keydown', (e) => {
         pushEvt('activity', { kind: 'key', type: 'down', key: e.key });
     });
-    
+
     document.addEventListener('keyup', (e) => {
         pushEvt('activity', { kind: 'key', type: 'up', key: e.key });
     });
+
+    //page enter/leave
+    pushEvt('activity', { kind: 'page-enter', href: location.href, referrer: document.referrer });
+    window.addEventListener('beforeunload', () => {
+        pushEvt('activity', { kind: 'page-leave', href: location.href });
+    });
+
+    //error logs
+    window.onerror = (msg, src, line, col, err) => {
+        pushEvt('activity', {
+            kind: 'error', msg: String(msg), src, line, col,
+            stack: err && err.stack
+        });
+    };
+
 })();
