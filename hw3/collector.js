@@ -76,4 +76,25 @@
         });
     };
 
+    //idle detection for 2s
+    let __lastActive = Date.now();
+    let __idleTimer = null;
+
+    function __bump() {
+        const now = Date.now();
+        if (__idleTimer) clearTimeout(__idleTimer);
+        if (now - __lastActive >= 2000) {
+            //user active, record end of idle
+            pushEvt('activity', { kind: 'idle-end', durationMs: now - __lastActive, endedAt: now });
+        }
+        __lastActive = now;
+        __idleTimer = setTimeout(() => {
+            // 2 sesc no activity, record start of idle
+            pushEvt('activity', { kind: 'idle-start', startedAt: Date.now() });
+        }, 2000);
+    }
+    ['mousemove','keydown','keyup','scroll','click','touchstart','touchend']
+        .forEach(ev => document.addEventListener(ev, __bump, { passive: true }));
+    __bump();
+
 })();
