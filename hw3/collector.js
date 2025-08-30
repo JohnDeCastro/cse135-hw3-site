@@ -34,4 +34,28 @@
             timing: nav.toJSON()
         });
     });
+    
+    let __lastMove = 0;
+    document.addEventListener('mousemove', (e) => {
+        const now = Date.now();
+        if (now - __lastMove > 200) { __lastMove = now;
+            pushEvt('activity', { kind: 'mouse', type: 'move', x: e.clientX, y: e.clientY });
+        }
+    }, { passove: true });
+
+    document.addEventListener('click', (e) => {
+        pushEvt('activity', { kind: 'mouse', type: 'click', x: e.clientX, y: e.clientY, button: e.button });
+    }, { passive: true });
+
+    document.addEventListener('scroll', () => {
+        pushEvt('activity', { kind: 'scroll', x: scrollX, y: scrollY });
+    }, { passive: true });
+
+    document.addEventListener('keydown', (e) => {
+        pushEvt('activity', { kind: 'key', type: 'down', key: e.key });
+    });
+    
+    document.addEventListener('keyup', (e) => {
+        pushEvt('activity', { kind: 'key', type: 'up', key: e.key });
+    });
 })();
