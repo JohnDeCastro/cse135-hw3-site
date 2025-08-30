@@ -1,15 +1,76 @@
 (() => {
-    const ENDPOINT = '/json/events';
-    const sessionId = crypto.randomUUID ? crypto.randomUUID() : (Date.now() + '-' + Math.random());
-    const page = location.pathname + location.search + location.hash;
+    // buffered sending with retry (per-event POSTs for json-server)
+    const ENDPOINT = '/json/events';            
+    const BUF_KEY  = 'analytics-buffer';
 
-    const pushEvt = (type, payload) => {
-        fetch(ENDPOINT, {
+    // load/save queue
+    const loadBuf  = () => JSON.parse(localStorage.getItem(BUF_KEY) || '[]');
+    const saveBuf  = (arr) => localStorage.setItem(BUF_KEY, JSON.stringify(arr));
+
+    // enqueue-only push
+    function pushEvt(type, payload) {
+        const evt = {
+            sessionId: (window.__SESSION_ID ||= (crypto.randomUUID?.() || (Date.now()+'-'+Math.random().toString(16).slice(2)))),
+            type,
+            ts: Date.now(),
+            page: location.pathname + location.search + location.hash,
+            payload
+        };
+        const q = loadBuf(); q.push(evt); saveBuf(q);
+    }
+
+    // send 1 event (json-server expects single object)
+    async function sendOne(event) {
+        const res = await fetch(ENDPOINT, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sessionId, type, ts: Date.now(), page, payload})
+            body: JSON.stringify(event)
         });
-    };
+        return res.ok;
+    }
+
+    // flush in small chunks (posts individually)
+    async function flush(limit = 25, useBeacon = false) {
+        let q = loadBuf();
+        if (!q.length) return;
+
+        // If we can use sendBeacon (on hide/unload), send items individually
+        if (useBeacon && navigator.sendBeacon) {
+            const toSend = q.slice(0, limit);
+            // optimistic remove
+            saveBuf(q.slice(limit));
+            let failed = [];
+            for (const ev of toSend) {
+                const ok = navigator.sendBeacon(ENDPOINT, new Blob([JSON.stringify(ev)], { type: 'application/json' }));
+                if (!ok) failed.push(ev);
+            }
+            // re-queue failed
+            if (failed.length) saveBuf(failed.concat(loadBuf()));
+            return;
+        }
+
+        // normal flush with fetch
+        const toSend = q.slice(0, limit);
+        // optimistic remove
+        saveBuf(q.slice(limit));
+        let failed = [];
+        for (const ev of toSend) {
+            try {
+                const ok = await sendOne(ev);
+                if (!ok) failed.push(ev);
+            } catch {
+                failed.push(ev);
+            }
+        }
+        if (failed.length) saveBuf(failed.concat(loadBuf()));
+    }
+
+    // periodic + lifecycle flushes
+    setInterval(() => { flush(25, false); }, 5000);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') flush(50, true);
+    });
+    window.addEventListener('beforeunload', () => { flush(50, true); });
 
     // static
     window.addEventListener('load', () => {
