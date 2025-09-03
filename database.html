@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>HW3 – Database Viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.zinggrid.com/zinggrid.min.js" defer></script>
+  <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@1.5.10/css/pico.min.css">
+  <style>
+    body { padding: 1rem; }
+    section { margin-bottom: 2rem; }
+    zing-grid { height: 420px; }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <h1>HW3 – Database (Read-Only)</h1>
+
+    <section>
+      <h2>Static</h2>
+      <zing-grid
+        caption="Static"
+        pager page-size="10"
+        layout="row"
+        src="/api/static"
+        editor-controls="disabled"
+        columns='[
+          {"index":"id","type":"number"},
+          {"index":"sessionId"},
+          {"index":"ua"},
+          {"index":"lang"},
+          {"index":"cookies"},
+          {"index":"jsEnabled"},
+          {"index":"cssEnabled"},
+          {"index":"imagesEnabled"},
+          {"index":"screenW","type":"number"},
+          {"index":"screenH","type":"number"},
+          {"index":"windowW","type":"number"},
+          {"index":"windowH","type":"number"},
+          {"index":"connection"},
+          {"index":"page"},
+          {"index":"ts","type":"number"}
+        ]'>
+      </zing-grid>
+    </section>
+
+    <section>
+      <h2>Performance</h2>
+      <zing-grid
+        caption="Performance"
+        pager page-size="10"
+        src="/api/perf"
+        editor-controls="disabled"
+        columns='[
+          {"index":"id","type":"number"},
+          {"index":"sessionId"},
+          {"index":"page"},
+          {"index":"start_ms","type":"number"},
+          {"index":"end_ms","type":"number"},
+          {"index":"total_ms","type":"number"},
+          {"index":"ts","type":"number"}
+        ]'>
+      </zing-grid>
+    </section>
+
+    <section>
+      <h2>Activity</h2>
+      <zing-grid
+        caption="Activity"
+        pager page-size="10"
+        src="/api/activity"
+        editor-controls="disabled"
+        columns='[
+          {"index":"id","type":"number"},
+          {"index":"sessionId"},
+          {"index":"page"},
+          {"index":"kind"},
+          {"index":"subtype"},
+          {"index":"x","type":"number"},
+          {"index":"y","type":"number"},
+          {"index":"button","type":"number"},
+          {"index":"scrollX","type":"number"},
+          {"index":"scrollY","type":"number"},
+          {"index":"keyText"},
+          {"index":"idleDurationMs","type":"number"},
+          {"index":"msg"},
+          {"index":"ts","type":"number"}
+        ]'>
+      </zing-grid>
+    </section>
+  </main>
+</body>
+</html>
