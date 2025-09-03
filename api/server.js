@@ -13,7 +13,7 @@ const pool = mysql.createPool({
   host: process.env.DB_HOST,          // DO host
   port: process.env.DB_PORT || 25060, // DO port
   user: process.env.DB_USER,          // doadmin
-  password: process.env.DB_PASSWORD,  // from DO
+  password: process.env.DB_PASS,  // from DO
   database: process.env.DB_NAME,      // cse135_hw3
   connectionLimit: 5,
   ssl: {
