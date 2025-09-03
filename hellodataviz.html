@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Hello Data Viz</title>
+  <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@1.5.10/css/pico.min.css">
+  <!-- ZingChart -->
+  <script src="https://cdn.zinggrid.com/zingchart.min.js"></script>
+  <style>
+    .grid { display: grid; gap: 1.25rem; }
+    .card { padding: 1rem; background: #fff; border-radius: 14px; box-shadow: 0 6px 16px rgba(0,0,0,.07); }
+    #lineChart,#barChart,#pieChart { height: 360px; width: 100%; }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <h1>Hello Data Viz</h1>
+    <p>Charts built from your collected data. Falls back to dummy data if the live fetch fails.</p>
+
+    <div class="grid">
+      <section class="card">
+        <h3>3-Series Line (Perf timings)</h3>
+        <div id="lineChart"></div>
+      </section>
+
+      <section class="card">
+        <h3>2-Series Bar (Clicks vs Keydowns)</h3>
+        <div id="barChart"></div>
+      </section>
+
+      <section class="card">
+        <h3>Pie (Static: Language Share)</h3>
+        <div id="pieChart"></div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+  async function getJSON(url) {
+    const r = await fetch(url, { credentials: 'omit' });
+    if (!r.ok) throw new Error('bad ' + url);
+    return r.json();
+  }
+
+  async function loadData() {
+    // try live endpoints; fall back to dummy if anything fails.
+    try {
+      // perf & Activity from your API if it’s up; else we’ll fall back to /json or dummy.
+      const [perf, activity, statics] = await Promise.all([
+        getJSON('/api/perf').catch(()=>[]),
+        getJSON('/api/activity').catch(()=>[]),
+        // no /api/static? Pull something approximating from /json/events (type=="static")
+        getJSON('/json/events').catch(()=>[])
+      ]);
+
+      return { perf, activity, events: statics };
+    } catch {
+      return { perf: [], activity: [], events: [] };
+    }
+  }
+
+  function dummy() {
+    return {
+      perf: [
+        { ts: 1, start_ms: 0, end_ms: 200, total_ms: 200 },
+        { ts: 2, start_ms: 0, end_ms: 300, total_ms: 300 },
+        { ts: 3, start_ms: 0, end_ms: 250, total_ms: 250 },
+      ],
+      activity: [
+        { subtype: 'click' },{ subtype: 'click' },{ subtype: 'keydown' }
+      ],
+      events: [
+        { payload: { lang: 'en-US' } },
+        { payload: { lang: 'en-US' } },
+        { payload: { lang: 'es-ES' } },
+      ]
+    };
+  }
+
+  function coerce(data) {
+    // if no live data, use dummy.
+    const useDummy = (!data.perf?.length && !data.activity?.length);
+    return useDummy ? dummy() : {
+      perf: data.perf.map((p,i)=>({
+        ts: i+1,
+        start_ms: Number(p.start_ms ?? p.payload?.timing?.startTime ?? 0),
+        end_ms: Number(p.end_ms ?? p.payload?.timing?.loadEventEnd ?? 0),
+        total_ms: Number(p.total_ms ?? p.total ?? 0)
+      })),
+      activity: data.activity.map(a=>({
+        subtype: a.subtype || a.type || a.payload?.type || 'other'
+      })),
+      // if we loaded /json/events, filter static events for language pie
+      events: (Array.isArray(data.events) ? data.events : []).filter(e=>e.type==='static')
+    };
+  }
+
+  function draw(perf, activity, events) {
+    // 3-series line (start, end, total) across records
+    const labels = perf.map((p,i)=>String(i+1));
+    const sStart = perf.map(p=>p.start_ms||0);
+    const sEnd   = perf.map(p=>p.end_ms||0);
+    const sTot   = perf.map(p=>p.total_ms||0);
+
+    zingchart.render({
+      id: 'lineChart',
+      data: {
+        type: 'line',
+        title: { text: 'Page Load Timing (ms)' },
+        scaleX: { label: { text: 'Sample' }, labels },
+        scaleY: { label: { text: 'ms' } },
+        series: [
+          { values: sStart, text: 'start' },
+          { values: sEnd,   text: 'end'   },
+          { values: sTot,   text: 'total' },
+        ]
+      }
+    });
+
+    // 2-series bar: clicks vs keydowns count
+    const clicks   = activity.filter(a=>a.subtype==='click').length;
+    const keydowns = activity.filter(a=>a.subtype==='keydown').length;
+
+    zingchart.render({
+      id: 'barChart',
+      data: {
+        type: 'bar',
+        title: { text: 'Activity Counts' },
+        'scale-x': { labels: ['clicks', 'keydowns'] },
+        series: [
+          { values: [clicks, keydowns], text: 'events' },
+          { values: [Math.max(0, clicks-1), Math.max(0, keydowns-1)], text: 'events-1 (demo)' }
+        ]
+      }
+    });
+
+    // Pie: language share from static records
+    const langCounts = {};
+    for (const e of events) {
+      const lang = e.payload?.lang || 'unknown';
+      langCounts[lang] = (langCounts[lang]||0)+1;
+    }
+    const pieSeries = Object.entries(langCounts).map(([text,value])=>({ text, values:[value] })) || [{text:'none',values:[1]}];
+
+    zingchart.render({
+      id: 'pieChart',
+      data: {
+        type: 'pie',
+        title: { text: 'Languages (Static)' },
+        series: pieSeries
+      }
+    });
+  }
+
+  (async () => {
+    const raw = await loadData();
+    const { perf, activity, events } = coerce(raw);
+    draw(perf, activity, events);
+  })();
+  </script>
+</body>
+</html>
