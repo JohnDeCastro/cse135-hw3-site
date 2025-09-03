@@ -7,16 +7,21 @@ app.use(cors());
 app.use(express.json());
 
 require('dotenv').config();
+const fs = require('fs');
 
 const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  port: +process.env.DB_PORT,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  database: process.env.DB_NAME,
+  host: process.env.DB_HOST,          // DO host
+  port: process.env.DB_PORT || 25060, // DO port
+  user: process.env.DB_USER,          // doadmin
+  password: process.env.DB_PASSWORD,  // from DO
+  database: process.env.DB_NAME,      // cse135_hw3
   connectionLimit: 5,
-  ssl: { minVersion: 'TLSv1.2' }
+  ssl: {
+    ca: fs.readFileSync(__dirname + '/ca-certificate.crt'),
+    rejectUnauthorized: true
+    }
 });
+
 
 
 
@@ -71,18 +76,36 @@ app.post('/perf', async (req,res)=> {
 
 // activity
 app.get('/activity', async (req,res)=> {
-    res.json(await q('SELECT * FROM activity ORDER BY id DESC LIMIT 1000'));
+  res.json(await q('SELECT * FROM activity ORDER BY id DESC LIMIT 1000'));
 });
+
 app.post('/activity', async (req,res)=> {
-    const b = req.body||{};
-    const result = await q(
-        `INSERT INTO activity (sessionId,page,kind,subtype,x,y,button,scrollX,scrollY,keyText,idleDurationMs,msg,stack,ts)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [b.sessionId,b.page,b.kind,b.type||b.subtype||null,
-        b.x||null,b.y||null,b.button||null,b.x||null,b.y||null,
-        b.key||null,b.durationMs||null,b.msg||null,b.stack||null,b.ts||Date.now()]
-    );
-    res.status(201).json({id: result.insertId});
+  const b = req.body || {};
+
+  // map button if string like 'left'
+  let btn = null;
+  if (typeof b.button === 'number') {
+    btn = b.button;
+  } else if (typeof b.button === 'string') {
+    const map = { left: 0, middle: 1, right: 2 };
+    btn = map[b.button.toLowerCase()] ?? null;
+  }
+
+  const result = await q(
+    `INSERT INTO activity (sessionId,page,kind,subtype,x,y,button,scrollX,scrollY,keyText,idleDurationMs,msg,stack,ts)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [
+      b.sessionId, b.page, b.kind, (b.type || b.subtype || null),
+      (b.x ?? null), (b.y ?? null), btn,
+      (b.scrollX ?? null), (b.scrollY ?? null),
+      (b.key || b.keyText || null),
+      (b.durationMs ?? b.idleDurationMs ?? null),
+      (b.msg ?? null), (b.stack ?? null),
+      (b.ts || Date.now())
+    ]
+  );
+
+  res.status(201).json({ id: result.insertId });
 });
 
 app.get('/health', (_,res)=> res.json({ok:true}));
