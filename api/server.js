@@ -9,7 +9,7 @@ app.use(express.json());
 const pool = mysql.createPool({
     host: 'localhost',
     user: 'hw3',
-    password: 'strongpassword123!',
+    password: 'cse135!!UCSD',
     database: 'cse135_hw3',
     connectionLimit: 5
 });
