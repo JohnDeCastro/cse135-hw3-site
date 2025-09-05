@@ -1,25 +1,40 @@
 const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2/promise');
+const fs = require('fs');
+const path = require('path');
+const dotenv = require('dotenv');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-require('dotenv').config();
-const fs = require('fs');
+// Load environment variables: prefer /etc/hw3-api.env on server,
+// fall back to local .env when running in dev (VSCode)
+const candidates = [
+  '/etc/hw3-api.env',
+  path.join(__dirname, '.env'),
+];
+
+for (const p of candidates) {
+  if (fs.existsSync(p)) {
+    dotenv.config({ path: p, override: true });
+    console.log(`Loaded environment from ${p}`);
+    break;
+  }
+}
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST,          // DO host
   port: process.env.DB_PORT || 25060, // DO port
   user: process.env.DB_USER,          // doadmin
-  password: process.env.DB_PASS,  // from DO
+  password: process.env.DB_PASS,      // from DO
   database: process.env.DB_NAME,      // cse135_hw3
   connectionLimit: 5,
   ssl: {
     ca: fs.readFileSync(__dirname + '/ca-certificate.crt'),
     rejectUnauthorized: true
-    }
+  }
 });
 
 async function q(sql, params=[]) {
