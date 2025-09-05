@@ -33,6 +33,7 @@ app.locals.q = q;
 // mount analytics router
 const analyticsRouter = require('./routes/analytics');
 app.use('/api/analytics', analyticsRouter);
+app.use('/analytics', analyticsRouter); 
 
 // static
 app.get('/static', async (req,res)=> {
