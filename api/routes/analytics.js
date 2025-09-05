@@ -2,13 +2,13 @@
 const express = require('express');
 const router = express.Router();
 
-// MySQL q() helper
-function q(sql, params = []) {
-  const app = router._app || (router._app = router.appRef || router.parent || null) || (router._app = require('express')());
-  const realQ = router.qRef || (router.qRef = router?.app?.locals?.q || router?.parent?.locals?.q || (router._attachedQ));
-  if (!realQ) throw new Error('analytics router: q() not attached via app.locals.q');
-  return realQ(sql, params);
-}
+// Attach q() from parent app
+router.use((req, _res, next) => {
+  if (!req.app.locals?.q) return next(new Error('q() missing on app.locals'));
+  router.q = req.app.locals.q;
+  next();
+});
+const q = (...args) => router.q(...args);
 
 // PAGEVIEWS (performance table: one row per page load)
 // GET /api/analytics/pageviews?since=YYYY-MM-DD&groupBy=day|hour
@@ -18,16 +18,13 @@ router.get('/pageviews', async (req, res) => {
   const bucketSql = (groupBy === 'hour')
     ? "DATE_FORMAT(FROM_UNIXTIME(ts/1000), '%Y-%m-%d %H:00:00')"
     : "DATE(FROM_UNIXTIME(ts/1000))";
-
   const rows = await q(
     `SELECT ${bucketSql} AS bucket, COUNT(*) AS cnt
        FROM performance
       WHERE FROM_UNIXTIME(ts/1000) >= ?
    GROUP BY bucket
-   ORDER BY bucket`,
-    [since]
+   ORDER BY bucket`, [since]
   );
-
   res.json({
     points: rows.map(r => ({
       date: (groupBy === 'day') ? String(r.bucket).slice(0,10) : undefined,
@@ -37,22 +34,19 @@ router.get('/pageviews', async (req, res) => {
   });
 });
 
-// TOP ROUTES (which pages were loaded most)
+// TOP ROUTES (most loaded pages)
 // GET /api/analytics/top-routes?since=YYYY-MM-DD&limit=10
 router.get('/top-routes', async (req, res) => {
   const since = req.query.since || new Date(Date.now() - 7 * 86400e3).toISOString().slice(0,10);
   const limit = Math.max(1, Math.min(100, parseInt(req.query.limit || '10', 10)));
-
   const rows = await q(
     `SELECT page AS route, COUNT(*) AS hits
        FROM performance
       WHERE FROM_UNIXTIME(ts/1000) >= ?
    GROUP BY page
    ORDER BY hits DESC
-      LIMIT ?`,
-    [since, limit]
+      LIMIT ?`, [since, limit]
   );
-
   res.json({ routes: rows.map(r => ({ route: r.route || '(unknown)', hits: Number(r.hits) })) });
 });
 
@@ -60,7 +54,6 @@ router.get('/top-routes', async (req, res) => {
 // GET /api/analytics/errors?since=YYYY-MM-DD
 router.get('/errors', async (req, res) => {
   const since = req.query.since || new Date(Date.now() - 1 * 86400e3).toISOString().slice(0,10);
-
   const flat = await q(
     `SELECT page AS endpoint,
             COUNT(*) AS cnt,
@@ -68,10 +61,8 @@ router.get('/errors', async (req, res) => {
        FROM activity
       WHERE kind='error' AND FROM_UNIXTIME(ts/1000) >= ?
    GROUP BY endpoint
-   ORDER BY cnt DESC`,
-    [since]
+   ORDER BY cnt DESC`, [since]
   );
-
   const agg = await q(
     `SELECT page AS endpoint,
             COUNT(*) AS totalErrors,
@@ -79,10 +70,8 @@ router.get('/errors', async (req, res) => {
        FROM activity
       WHERE kind='error' AND FROM_UNIXTIME(ts/1000) >= ?
    GROUP BY endpoint
-   ORDER BY totalErrors DESC`,
-    [since]
+   ORDER BY totalErrors DESC`, [since]
   );
-
   res.json({
     errors: flat.map(r => ({
       endpoint: r.endpoint || '(unknown)',
@@ -92,15 +81,14 @@ router.get('/errors', async (req, res) => {
     })),
     rows: agg.map(r => ({
       endpoint: r.endpoint || '(unknown)',
-      '4xx': 0,
-      '5xx': 0,
+      '4xx': 0, '5xx': 0,
       totalErrors: Number(r.totalErrors),
       lastSeen: r.lastSeen
     }))
   });
 });
 
-// ERROR RATE: errors/hour ÷ pageviews/hour
+// ERROR RATE (errors/hour ÷ pageviews/hour)
 // GET /api/analytics/error-rate?since=YYYY-MM-DD&groupBy=hour|day
 router.get('/error-rate', async (req, res) => {
   const since = req.query.since || new Date(Date.now() - 7 * 86400e3).toISOString().slice(0,10);
@@ -112,8 +100,7 @@ router.get('/error-rate', async (req, res) => {
        FROM performance
       WHERE FROM_UNIXTIME(ts/1000) >= ?
    GROUP BY bucket
-   ORDER BY bucket`,
-    [bucketFmt, since]
+   ORDER BY bucket`, [bucketFmt, since]
   );
 
   const errs = await q(
@@ -121,8 +108,7 @@ router.get('/error-rate', async (req, res) => {
        FROM activity
       WHERE kind='error' AND FROM_UNIXTIME(ts/1000) >= ?
    GROUP BY bucket
-   ORDER BY bucket`,
-    [bucketFmt, since]
+   ORDER BY bucket`, [bucketFmt, since]
   );
 
   const map = new Map();
@@ -132,8 +118,8 @@ router.get('/error-rate', async (req, res) => {
     row.errors += Number(e.errors);
     map.set(e.bucket, row);
   }
-
   res.json({ points: Array.from(map.values()) });
 });
 
 module.exports = router;
+
