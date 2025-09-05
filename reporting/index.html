@@ -1,141 +1,199 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>HW3 – Checkpoint 3 Analytics</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
   <style>
     :root {
-      color-scheme: light dark;
+      --gap: 16px;
+      --card-min-h: 360px;
+      --chart-h: 260px;
+      --radius: 10px;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --bg: #0b0c10;
+      --panel: #111217;
+      --text: #e5e7eb;
     }
-  
+
     * {
       box-sizing: border-box;
     }
-  
+
+    html,
     body {
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-      margin: 0;
-      padding: 24px;
-      display: flex;
-      justify-content: center;
-      background: Canvas;
-      color: CanvasText;
+      height: 100%;
     }
-  
+
+    body {
+      margin: 0;
+      font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: var(--text);
+      background: var(--bg);
+    }
+
     .container {
       max-width: 1200px;
       margin: 0 auto;
       padding: 24px;
     }
-  
+
     h1 {
       margin: 0 0 16px;
       font-size: 22px;
     }
-  
+
     .toolbar {
       display: flex;
+      flex-wrap: wrap;
       gap: 12px;
       align-items: center;
-      margin: 0 0 16px;
-      flex-wrap: wrap;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      padding: 12px;
+      border-radius: var(--radius);
+      margin-bottom: 16px;
     }
-  
-    input,
-    select,
-    button {
-      padding: 6px 10px;
+
+    .toolbar label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .toolbar input,
+    .toolbar select,
+    .toolbar button {
+      height: 34px;
+      padding: 0 10px;
       border-radius: 8px;
-      border: 1px solid #ccc;
+      border: 1px solid var(--border);
+      background: #0f1116;
+      color: var(--text);
     }
-  
-    button {
+
+    .toolbar button {
       cursor: pointer;
     }
-  
+
     .muted {
-      opacity: .75;
-      font-size: 13px;
+      color: var(--muted);
+      font-size: 12px;
     }
-  
+
+    /* GRID: exactly 2 columns on desktop, 1 on mobile */
     .grid {
       display: grid;
-      gap: 20px;
+      gap: var(--gap);
       grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: start;
     }
-  
-    @media (max-width: 860px) {
+
+    @media (max-width: 900px) {
       .grid {
         grid-template-columns: 1fr;
       }
     }
-  
+
+    /* CARD */
     .card {
-      border: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
-      border-radius: 12px;
-      padding: 16px;
-      background: color-mix(in srgb, Canvas 96%, CanvasText 4%);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      min-height: var(--card-min-h);
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      min-height: 0;
+      gap: 10px;
     }
-  
+
     .card h2 {
-      margin: 0;
-      font-size: 18px;
+      margin: 0 0 4px;
+      font-size: 16px;
     }
-  
-    .chart-wrap {
-      height: 320px;
-    }
-  
-    canvas {
+
+    /* Charts: fixed height so cards don't grow endlessly */
+    .chart {
+      position: relative;
       width: 100%;
-      height: 100%;
+      height: var(--chart-h);
     }
-  
+
+    .chart canvas {
+      position: absolute;
+      inset: 0;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    /* Errors table with internal scroll, sticky header */
+    .table-wrap {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: auto;
+      flex: 1;
+      max-height: calc(var(--card-min-h) - 110px);
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 14px;
     }
-  
-    th,
-    td {
-      padding: 8px;
-      border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
+
+    thead th {
+      position: sticky;
+      top: 0;
+      background: #0f1116;
+      z-index: 1;
       text-align: left;
+      font-weight: 600;
+      font-size: 12px;
+      border-bottom: 1px solid var(--border);
+      padding: 8px 10px;
     }
-  
-    .table-wrap {
-      max-height: 320px;
-      overflow: auto;
-      border-radius: 8px;
+
+    tbody td {
+      border-bottom: 1px solid rgba(229, 231, 235, .08);
+      padding: 8px 10px;
+      font-size: 13px;
     }
-  
-    .footer {
-      margin-top: 16px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
+
+    tbody tr:hover {
+      background: rgba(229, 231, 235, .04);
     }
-  
-    a.btn {
+
+    /* link to detailed report */
+    .actions {
+      margin: 8px 0 16px;
+    }
+
+    .actions a {
+      color: #93c5fd;
       text-decoration: none;
-      border: 1px solid #ccc;
+      border: 1px solid var(--border);
       padding: 6px 10px;
       border-radius: 8px;
+      background: #0f1116;
+    }
+
+    .actions a:hover {
+      text-decoration: underline;
     }
   </style>
 </head>
+
 <body>
   <div class="container">
     <h1>HW3 – Checkpoint 3 Analytics</h1>
+
+    <div class="actions">
+      <!-- update href once your detailed report page exists -->
+      <a href="/reporting/error-rate.html">View detailed error-rate report →</a>
+    </div>
 
     <div class="toolbar">
       <label>Since:
@@ -154,39 +212,39 @@
     <div class="grid">
       <div class="card">
         <h2>Pageviews</h2>
-        <canvas id="chartPageviews"></canvas>
+        <div class="chart"><canvas id="chartPageviews"></canvas></div>
         <div class="muted" id="pvMeta"></div>
       </div>
 
       <div class="card">
         <h2>Top Routes</h2>
-        <canvas id="chartTopRoutes"></canvas>
+        <div class="chart"><canvas id="chartTopRoutes"></canvas></div>
         <div class="muted" id="trMeta"></div>
       </div>
 
       <div class="card">
         <h2>Error Rate</h2>
-        <canvas id="chartErrorRate"></canvas>
+        <div class="chart"><canvas id="chartErrorRate"></canvas></div>
         <div class="muted" id="erMeta"></div>
       </div>
 
       <div class="card">
         <h2>Recent Errors</h2>
-        <table id="tblErrors">
-          <thead>
-            <tr>
-              <th>Endpoint</th>
-              <th>Count</th>
-              <th>Last seen</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
+        <div class="table-wrap">
+          <table id="tblErrors">
+            <thead>
+              <tr>
+                <th>Endpoint</th>
+                <th>Count</th>
+                <th>Last seen</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
         <div class="muted" id="errMeta"></div>
       </div>
     </div>
-
-    <div class="footer"><a class="btn" href="/reporting/traffic.html">Detailed report: Traffic</a></div>
   </div>
 
   <script>
@@ -208,7 +266,7 @@
       ctx.chart = new Chart(ctx, {
         type: 'line',
         data: { labels, datasets: [{ label, data: values, tension: 0.2 }] },
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, precision: 0 } } }
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
       });
       return ctx.chart;
     }
@@ -217,7 +275,7 @@
       ctx.chart = new Chart(ctx, {
         type: 'bar',
         data: { labels, datasets: [{ label, data: values }] },
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, precision: 0 } } }
+        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
       });
       return ctx.chart;
     }
@@ -234,22 +292,26 @@
           fetch(api('error-rate', { since, groupBy: groupBy === 'day' ? 'day' : 'hour' })).then(r => r.json()),
         ]);
 
+        // Pageviews
         const pvLabels = (pv.points || []).map(p => p.date ?? fmtDate(p.ts));
         const pvValues = (pv.points || []).map(p => p.count ?? 0);
         lineChart($('#chartPageviews'), pvLabels, pvValues, 'Pageviews');
         $('#pvMeta').textContent = `${pvValues.reduce((a, b) => a + b, 0)} total pageviews`;
 
+        // Top Routes
         const routes = (tr.routes || []);
         const trLabels = routes.map(r => r.route || '(unknown)');
         const trValues = routes.map(r => r.hits || 0);
         barChart($('#chartTopRoutes'), trLabels, trValues, 'Hits');
         $('#trMeta').textContent = `${routes.length} routes`;
 
+        // Error Rate
         const erLabels = (er.points || []).map(p => fmtDate(p.ts));
         const erValues = (er.points || []).map(p => p.errors || 0);
         lineChart($('#chartErrorRate'), erLabels, erValues, 'Errors per bucket');
         $('#erMeta').textContent = `${erValues.reduce((a, b) => a + b, 0)} errors`;
 
+        // Errors table
         const tbody = $('#tblErrors tbody');
         tbody.innerHTML = '';
         const flat = (errs.errors || []);
