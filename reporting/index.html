@@ -85,7 +85,7 @@
       font-size: 12px;
     }
 
-    /* GRID: exactly 2 columns on desktop, 1 on mobile */
+    /* grid: 2 columns on desktop, 1 on mobile */
     .grid {
       display: grid;
       gap: var(--gap);
@@ -99,7 +99,7 @@
       }
     }
 
-    /* CARD */
+    /* card */
     .card {
       background: var(--panel);
       border: 1px solid var(--border);
@@ -116,7 +116,7 @@
       font-size: 16px;
     }
 
-    /* Charts: fixed height so cards don't grow endlessly */
+    /* charts */
     .chart {
       position: relative;
       width: 100%;
@@ -130,7 +130,7 @@
       height: 100% !important;
     }
 
-    /* Errors table with internal scroll, sticky header */
+    /* errors table with internal scroll, sticky header */
     .table-wrap {
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -191,8 +191,7 @@
     <h1>HW3 – Checkpoint 3 Analytics</h1>
 
     <div class="actions">
-      <!-- update href once your detailed report page exists -->
-      <a href="/reporting/error-rate.html">View detailed error-rate report →</a>
+      <a href="/errors.html">View detailed error report →</a>
     </div>
 
     <div class="toolbar">
@@ -292,26 +291,26 @@
           fetch(api('error-rate', { since, groupBy: groupBy === 'day' ? 'day' : 'hour' })).then(r => r.json()),
         ]);
 
-        // Pageviews
+        // pageviews
         const pvLabels = (pv.points || []).map(p => p.date ?? fmtDate(p.ts));
         const pvValues = (pv.points || []).map(p => p.count ?? 0);
         lineChart($('#chartPageviews'), pvLabels, pvValues, 'Pageviews');
         $('#pvMeta').textContent = `${pvValues.reduce((a, b) => a + b, 0)} total pageviews`;
 
-        // Top Routes
+        // top Routes
         const routes = (tr.routes || []);
         const trLabels = routes.map(r => r.route || '(unknown)');
         const trValues = routes.map(r => r.hits || 0);
         barChart($('#chartTopRoutes'), trLabels, trValues, 'Hits');
         $('#trMeta').textContent = `${routes.length} routes`;
 
-        // Error Rate
+        // error Rate
         const erLabels = (er.points || []).map(p => fmtDate(p.ts));
         const erValues = (er.points || []).map(p => p.errors || 0);
         lineChart($('#chartErrorRate'), erLabels, erValues, 'Errors per bucket');
         $('#erMeta').textContent = `${erValues.reduce((a, b) => a + b, 0)} errors`;
 
-        // Errors table
+        // errors table
         const tbody = $('#tblErrors tbody');
         tbody.innerHTML = '';
         const flat = (errs.errors || []);

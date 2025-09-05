@@ -1,27 +1,82 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Errors Report</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
-    :root { --fg:#0f172a; --muted:#64748b; --card:#f8fafc; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: var(--fg); margin: 0; background:#fff; }
-    header { padding: 20px; border-bottom: 1px solid #e5e7eb; }
-    main { padding: 20px; display: grid; gap: 20px; grid-template-columns: 1fr; }
-    .card { background: var(--card); border: 1px solid #e5e7eb; border-radius: 16px; padding: 16px; }
-    .card h2 { margin: 0 0 8px; font-size: 18px; }
-    .grid { width:100%; border-collapse: collapse; }
-    .grid th, .grid td { padding:10px; border-bottom:1px solid #e5e7eb; text-align:left; }
-    .muted { color: var(--muted); font-size: 14px; }
-    a { color: inherit; }
+    :root {
+      --fg: #0f172a;
+      --muted: #64748b;
+      --card: #f8fafc;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      color: var(--fg);
+      margin: 0;
+      background: #fff;
+    }
+
+    header {
+      padding: 20px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    main {
+      padding: 20px;
+      display: grid;
+      gap: 20px;
+      grid-template-columns: 1fr;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 16px;
+    }
+
+    .card h2 {
+      margin: 0 0 8px;
+      font-size: 18px;
+    }
+
+    .grid {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .grid th,
+    .grid td {
+      padding: 10px;
+      border-bottom: 1px solid #e5e7eb;
+      text-align: left;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .err {
+      color: #b91c1c;
+      font-weight: 600;
+    }
   </style>
 </head>
+
 <body>
   <header>
     <h1 style="margin:0">Errors Report</h1>
-    <div class="muted">Guiding question: Which endpoints are causing errors, and how has error rate changed over time (last 7 days)?</div>
+    <div class="muted">Guiding question: Which endpoints are causing errors, and how has error rate changed over time
+      (last 7 days)?</div>
     <div><a href="/reporting/">← Back to Dashboard</a></div>
   </header>
 
@@ -29,12 +84,14 @@
     <section class="card">
       <h2>Error Rate Over Time (last 7 days)</h2>
       <div class="muted">Line chart: hourly error rate (%) = errors / total requests * 100</div>
-      <canvas id="errorRateChart" height="120"></canvas>
+      <div id="erStatus" class="muted">Loading…</div>
+      <canvas id="errorRateChart" height="120" aria-label="Error rate chart"></canvas>
     </section>
 
     <section class="card">
       <h2>Errors by Endpoint (last 7 days)</h2>
-      <table class="grid" id="byEndpoint">
+      <div id="tblStatus" class="muted">Loading…</div>
+      <table class="grid" id="byEndpoint" aria-label="Errors by endpoint">
         <thead>
           <tr>
             <th>Endpoint</th>
@@ -53,67 +110,67 @@
       <p>
         The chart shows when error rate spikes occur, helping correlate incidents with deploys or traffic surges.
         The grid highlights problematic endpoints and whether failures are client (4xx) or server (5xx) issues.
-        If most errors are 5xx on a single endpoint (e.g., <code>/api/checkout</code>), prioritize backend stability and add retries/circuit breakers.
+        If most errors are 5xx on a single endpoint (e.g., <code>/api/checkout</code>), prioritize backend stability and
+        add retries/circuit breakers.
         If 4xx dominates on <code>/api/login</code>, improve validation and client-side UX to reduce bad requests.
       </p>
     </section>
   </main>
 
   <script>
-    async function fetchJSON(url){ const r=await fetch(url); if(!r.ok) throw new Error(r.status); return r.json(); }
-    function dDaysAgo(n){ const d=new Date(); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); }
-    function fmt(iso){ const d=new Date(iso); return d.toLocaleString(); }
+    const dDaysAgo = n => {
+      const d = new Date(); d.setDate(d.getDate() - n);
+      return d.toISOString().slice(0, 10);
+    };
+    const fmt = iso => new Date(iso).toLocaleString();
+
+    async function fetchJSON(url) {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    }
 
     async function renderErrorRate() {
       const since = dDaysAgo(7);
-      let series;
+      const status = document.getElementById('erStatus');
       try {
-        // expected shape: { points: [{ ts:'2025-09-01T10:00:00Z', total: 1200, errors: 18 }, ... ] }
         const res = await fetchJSON(`/api/analytics/error-rate?since=${since}&groupBy=hour`);
-        series = res.points;
-      } catch {
-        const now = Date.now();
-        series = [...Array(48)].map((_,i)=> {
-          const ts = new Date(now - (47-i)*3600e3).toISOString();
-          const total = 800 + Math.floor(Math.random()*400);
-          const errors = Math.floor(5 + Math.random()*20 + (i%12===0?30:0));
-          return { ts, total, errors };
-        });
-      }
-      const labels = series.map(p=> new Date(p.ts).toLocaleString());
-      const perc = series.map(p=> (p.total? (p.errors/p.total*100):0).toFixed(2));
+        const series = res.points || [];
+        const labels = series.map(p => new Date(p.ts).toLocaleString());
+        const perc = series.map(p => (p.total ? (p.errors / p.total * 100) : 0).toFixed(2));
 
-      new Chart(document.getElementById('errorRateChart'), {
-        type: 'line',
-        data: { labels, datasets: [{ label:'Error Rate (%)', data: perc, tension: 0.3 }] },
-        options: { responsive:true, scales:{ y:{ beginAtZero:true, ticks:{ callback:(v)=>v+'%' } } } }
-      });
+        new Chart(document.getElementById('errorRateChart'), {
+          type: 'line',
+          data: { labels, datasets: [{ label: 'Error Rate (%)', data: perc, tension: 0.3 }] },
+          options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { callback: v => v + '%' } } } }
+        });
+        status.textContent = `Loaded ${series.length} points`;
+      } catch (e) {
+        status.innerHTML = `<span class="err">Failed to load error-rate (${e.message})</span>`;
+      }
     }
 
     async function renderByEndpoint() {
       const since = dDaysAgo(7);
-      let rows;
-      try {
-        // expected shape: { rows: [{ endpoint, totalErrors, x4xx, x5xx, lastSeen }, ...] }
-        const res = await fetchJSON(`/api/analytics/errors?since=${since}`);
-        rows = res.rows || res.errors;
-      } catch {
-        rows = [
-          { endpoint:'/api/checkout', totalErrors:42, x4xx:3, x5xx:39, lastSeen:new Date().toISOString() },
-          { endpoint:'/api/login', totalErrors:28, x4xx:25, x5xx:3,  lastSeen:new Date(Date.now()-3600e3).toISOString() },
-          { endpoint:'/api/products', totalErrors:9, x4xx:1, x5xx:8, lastSeen:new Date(Date.now()-2*3600e3).toISOString() }
-        ];
-      }
+      const status = document.getElementById('tblStatus');
       const tbody = document.querySelector('#byEndpoint tbody');
-      tbody.innerHTML = rows.map(r=>`
-        <tr>
-          <td>${r.endpoint}</td>
-          <td>${r.totalErrors ?? r.count ?? 0}</td>
-          <td>${r.x5xx ?? r['5xx'] ?? 0}</td>
-          <td>${r.x4xx ?? r['4xx'] ?? 0}</td>
-          <td>${fmt(r.lastSeen)}</td>
-        </tr>
-      `).join('');
+      try {
+        const res = await fetchJSON(`/api/analytics/errors?since=${since}`);
+        const rows = res.rows || res.errors || [];
+        tbody.innerHTML = rows.map(r => `
+          <tr>
+            <td>${r.endpoint || '(unknown)'}</td>
+            <td>${r.totalErrors ?? r.count ?? 0}</td>
+            <td>${r['5xx'] ?? r.x5xx ?? 0}</td>
+            <td>${r['4xx'] ?? r.x4xx ?? 0}</td>
+            <td>${r.lastSeen ? fmt(r.lastSeen) : '—'}</td>
+          </tr>
+        `).join('');
+        status.textContent = `${rows.length} endpoints`;
+      } catch (e) {
+        status.innerHTML = `<span class="err">Failed to load errors table (${e.message})</span>`;
+        tbody.innerHTML = '';
+      }
     }
 
     (async () => {
@@ -121,4 +178,5 @@
     })();
   </script>
 </body>
+
 </html>
