@@ -6,64 +6,187 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
   <style>
-    :root { color-scheme: light dark; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 24px; }
-    h1 { margin: 0 0 16px; }
-    .grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
-    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; background: #fff0; }
-    .card h2 { margin: 0 0 12px; font-size: 18px; }
-    canvas { width: 100%; height: 300px; }
-    table { width: 100%; border-collapse: collapse; font-size: 14px; }
-    th, td { padding: 8px; border-bottom: 1px solid #ddd; text-align: left; }
-    .muted { opacity: 0.7; font-size: 13px; }
-    .toolbar { display:flex; gap:12px; align-items:center; margin: 0 0 16px; flex-wrap: wrap; }
-    input, select, button { padding: 6px 10px; border-radius: 8px; border: 1px solid #ccc; }
-    button { cursor: pointer; }
+    :root {
+      color-scheme: light dark;
+    }
+  
+    * {
+      box-sizing: border-box;
+    }
+  
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 24px;
+      display: flex;
+      justify-content: center;
+      background: Canvas;
+      color: CanvasText;
+    }
+  
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+  
+    h1 {
+      margin: 0 0 16px;
+      font-size: 22px;
+    }
+  
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin: 0 0 16px;
+      flex-wrap: wrap;
+    }
+  
+    input,
+    select,
+    button {
+      padding: 6px 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+  
+    button {
+      cursor: pointer;
+    }
+  
+    .muted {
+      opacity: .75;
+      font-size: 13px;
+    }
+  
+    .grid {
+      display: grid;
+      gap: 20px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  
+    @media (max-width: 860px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  
+    .card {
+      border: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
+      border-radius: 12px;
+      padding: 16px;
+      background: color-mix(in srgb, Canvas 96%, CanvasText 4%);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 0;
+    }
+  
+    .card h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+  
+    .chart-wrap {
+      height: 320px;
+    }
+  
+    canvas {
+      width: 100%;
+      height: 100%;
+    }
+  
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+  
+    th,
+    td {
+      padding: 8px;
+      border-bottom: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
+      text-align: left;
+    }
+  
+    .table-wrap {
+      max-height: 320px;
+      overflow: auto;
+      border-radius: 8px;
+    }
+  
+    .footer {
+      margin-top: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+  
+    a.btn {
+      text-decoration: none;
+      border: 1px solid #ccc;
+      padding: 6px 10px;
+      border-radius: 8px;
+    }
   </style>
 </head>
 <body>
-  <h1>HW3 – Checkpoint 3 Analytics</h1>
-  <div class="toolbar">
-    <label>Since:
-      <input id="since" type="date" />
-    </label>
-    <label>Group by:
-      <select id="groupBy">
-        <option value="day">day</option>
-        <option value="hour">hour</option>
-      </select>
-    </label>
-    <button id="refresh">Refresh</button>
-    <span id="status" class="muted"></span>
-  </div>
+  <div class="container">
+    <h1>HW3 – Checkpoint 3 Analytics</h1>
 
-  <div class="grid">
-    <div class="card">
-      <h2>Pageviews</h2>
-      <canvas id="chartPageviews"></canvas>
-      <div class="muted" id="pvMeta"></div>
+    <div class="toolbar">
+      <label>Since:
+        <input id="since" type="date" />
+      </label>
+      <label>Group by:
+        <select id="groupBy">
+          <option value="day">day</option>
+          <option value="hour">hour</option>
+        </select>
+      </label>
+      <button id="refresh">Refresh</button>
+      <span id="status" class="muted"></span>
     </div>
 
-    <div class="card">
-      <h2>Top Routes</h2>
-      <canvas id="chartTopRoutes"></canvas>
-      <div class="muted" id="trMeta"></div>
+    <div class="grid">
+      <div class="card">
+        <h2>Pageviews</h2>
+        <canvas id="chartPageviews"></canvas>
+        <div class="muted" id="pvMeta"></div>
+      </div>
+
+      <div class="card">
+        <h2>Top Routes</h2>
+        <canvas id="chartTopRoutes"></canvas>
+        <div class="muted" id="trMeta"></div>
+      </div>
+
+      <div class="card">
+        <h2>Error Rate</h2>
+        <canvas id="chartErrorRate"></canvas>
+        <div class="muted" id="erMeta"></div>
+      </div>
+
+      <div class="card">
+        <h2>Recent Errors</h2>
+        <table id="tblErrors">
+          <thead>
+            <tr>
+              <th>Endpoint</th>
+              <th>Count</th>
+              <th>Last seen</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div class="muted" id="errMeta"></div>
+      </div>
     </div>
 
-    <div class="card">
-      <h2>Error Rate</h2>
-      <canvas id="chartErrorRate"></canvas>
-      <div class="muted" id="erMeta"></div>
-    </div>
-
-    <div class="card">
-      <h2>Recent Errors</h2>
-      <table id="tblErrors">
-        <thead><tr><th>Endpoint</th><th>Count</th><th>Last seen</th></tr></thead>
-        <tbody></tbody>
-      </table>
-      <div class="muted" id="errMeta"></div>
-    </div>
+    <div class="footer"><a class="btn" href="/reporting/traffic.html">Detailed report: Traffic</a></div>
   </div>
 
   <script>
@@ -73,8 +196,8 @@
     const api = (path, params) => `/api/analytics/${path}?` + qs(params);
 
     const defaultSince = () => {
-      const d = new Date(Date.now() - 7*24*3600*1000);
-      return d.toISOString().slice(0,10);
+      const d = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+      return d.toISOString().slice(0, 10);
     };
 
     $('#since').value = defaultSince();
@@ -114,7 +237,7 @@
         const pvLabels = (pv.points || []).map(p => p.date ?? fmtDate(p.ts));
         const pvValues = (pv.points || []).map(p => p.count ?? 0);
         lineChart($('#chartPageviews'), pvLabels, pvValues, 'Pageviews');
-        $('#pvMeta').textContent = `${pvValues.reduce((a,b)=>a+b,0)} total pageviews`;
+        $('#pvMeta').textContent = `${pvValues.reduce((a, b) => a + b, 0)} total pageviews`;
 
         const routes = (tr.routes || []);
         const trLabels = routes.map(r => r.route || '(unknown)');
@@ -125,7 +248,7 @@
         const erLabels = (er.points || []).map(p => fmtDate(p.ts));
         const erValues = (er.points || []).map(p => p.errors || 0);
         lineChart($('#chartErrorRate'), erLabels, erValues, 'Errors per bucket');
-        $('#erMeta').textContent = `${erValues.reduce((a,b)=>a+b,0)} errors`;
+        $('#erMeta').textContent = `${erValues.reduce((a, b) => a + b, 0)} errors`;
 
         const tbody = $('#tblErrors tbody');
         tbody.innerHTML = '';
