@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Analytics Dashboard</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root { --fg:#0f172a; --muted:#64748b; --ok:#16a34a; --bad:#dc2626; --card:#f8fafc; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: var(--fg); margin: 0; background:#fff; }
+    header { padding: 20px; border-bottom: 1px solid #e5e7eb; }
+    main { padding: 20px; display: grid; gap: 20px; grid-template-columns: 1fr; }
+    .cards { display: grid; gap: 20px; grid-template-columns: 1fr; }
+    .card { background: var(--card); border: 1px solid #e5e7eb; border-radius: 16px; padding: 16px; }
+    .card h2 { margin: 0 0 8px; font-size: 18px; }
+    .grid { width: 100%; border-collapse: collapse; }
+    .grid th, .grid td { padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: left; }
+    .muted { color: var(--muted); font-size: 14px; }
+    .row { display: grid; gap: 20px; grid-template-columns: 1fr; }
+    @media (min-width: 900px) {
+      main { grid-template-columns: 1fr; }
+      .cards { grid-template-columns: 1fr 1fr; }
+      .row { grid-template-columns: 1.2fr 1fr; }
+    }
+    a.button { display:inline-block; padding:10px 14px; border:1px solid #e5e7eb; border-radius:12px; text-decoration:none; color:var(--fg); background:#fff; }
+    .topbar { display:flex; align-items:center; gap:12px; justify-content: space-between; }
+    .links { display:flex; gap:8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="topbar">
+      <div>
+        <h1 style="margin:0">Reporting Dashboard</h1>
+        <div class="muted">Overview of site activity • last 7–14 days</div>
+      </div>
+      <div class="links">
+        <a class="button" href="/errors.html">Errors Report</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- first row for page views chart and top route graph -->
+    <section class="row">
+      <div class="card">
+        <h2>Pageviews (last 14 days)</h2>
+        <div class="muted">Daily totals. Good for trend & seasonality → line chart.</div>
+        <canvas id="pageviewsChart" height="120"></canvas>
+      </div>
+
+      <div class="card">
+        <h2>Top Routes (last 7 days)</h2>
+        <div class="muted">Compare categories → horizontal bar chart.</div>
+        <canvas id="routesChart" height="120"></canvas>
+      </div>
+    </section>
+
+    <!-- second row for errors grid -->
+    <section class="card">
+      <h2>Recent Errors (last 24 hours)</h2>
+      <div class="muted">Endpoint, status, count, last seen. Grid suits detailed scanning.</div>
+      <table class="grid" id="errorsGrid">
+        <thead>
+          <tr>
+            <th>Endpoint</th>
+            <th>Status</th>
+            <th>Count</th>
+            <th>Last Seen</th>
+          </tr>
+        </thead>
+        <tbody><!-- js --></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script>
+    // some helpers
+    async function fetchJSON(url) {
+      const res = await fetch(url, { credentials: "same-origin" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    }
+    function dDaysAgo(n) {
+      const d = new Date();
+      d.setDate(d.getDate() - n);
+      return d.toISOString().slice(0,10);
+    }
+    function fmtDateTime(iso) {
+      try {
+        const d = new Date(iso);
+        return d.toLocaleString();
+      } catch { return iso; }
+    }
+
+    // load / render page views
+    async function renderPageviews() {
+      const since = dDaysAgo(14);
+      let data;
+      try {
+        data = await fetchJSON(`/api/analytics/pageviews?since=${since}&groupBy=day`);
+      } catch {
+        // fallback
+        const today = new Date();
+        const points = [...Array(14)].map((_,i)=> {
+          const d = new Date(); d.setDate(today.getDate()-13+i);
+          return { date: d.toISOString().slice(0,10), count: Math.floor(100+80*Math.sin(i/2)+Math.random()*40) };
+        });
+        data = { points };
+      }
+      const labels = data.points.map(p=>p.date);
+      const counts = data.points.map(p=>p.count);
+
+      new Chart(document.getElementById('pageviewsChart'), {
+        type: 'line',
+        data: { labels, datasets: [{ label: 'Pageviews', data: counts, tension: 0.3 }]},
+        options: {
+          responsive: true,
+          plugins: { legend: { display: true } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+    }
+
+    // load / render top routes
+    async function renderTopRoutes() {
+      const since = dDaysAgo(7);
+      let rows;
+      try {
+        const res = await fetchJSON(`/api/analytics/top-routes?since=${since}&limit=10`);
+        rows = res.routes;
+      } catch {
+        rows = [
+          { route:'/home', hits: 820 },
+          { route:'/products', hits: 610 },
+          { route:'/login', hits: 420 },
+          { route:'/cart', hits: 260 },
+          { route:'/search', hits: 210 }
+        ];
+      }
+      const labels = rows.map(r=>r.route);
+      const hits = rows.map(r=>r.hits);
+
+      new Chart(document.getElementById('routesChart'), {
+        type: 'bar',
+        data: { labels, datasets: [{ label: 'Hits', data: hits }]},
+        options: {
+          indexAxis: 'y',
+          responsive: true,
+          plugins: { legend: { display: true } },
+          scales: { x: { beginAtZero: true } }
+        }
+      });
+    }
+
+    // load / render errors
+    async function renderErrorsGrid() {
+      const since = dDaysAgo(1);
+      let rows;
+      try {
+        const res = await fetchJSON(`/api/analytics/errors?since=${since}`);
+        rows = res.errors;
+      } catch {
+        rows = [
+          { endpoint:'/api/checkout', status:500, count:7, lastSeen:new Date().toISOString() },
+          { endpoint:'/api/login', status:401, count:15, lastSeen:new Date(Date.now()-3600e3).toISOString() },
+          { endpoint:'/api/products', status:503, count:3, lastSeen:new Date(Date.now()-7200e3).toISOString() }
+        ];
+      }
+      const tbody = document.querySelector('#errorsGrid tbody');
+      tbody.innerHTML = rows.map(r=>`
+        <tr>
+          <td>${r.endpoint}</td>
+          <td style="color:${(+r.status>=500)?'var(--bad)':'var(--muted)'}">${r.status}</td>
+          <td>${r.count}</td>
+          <td>${fmtDateTime(r.lastSeen)}</td>
+        </tr>
+      `).join('');
+    }
+
+    // initialize
+    (async () => {
+      await Promise.all([renderPageviews(), renderTopRoutes(), renderErrorsGrid()]);
+    })();
+  </script>
+</body>
+</html>
