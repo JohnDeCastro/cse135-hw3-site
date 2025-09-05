@@ -2,106 +2,138 @@
 const express = require('express');
 const router = express.Router();
 
-const { Pool } = require('pg');
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-
-function q(sql, params) {
-  return pool.query(sql, params).then(r => r.rows);
+// MySQL q() helper
+function q(sql, params = []) {
+  const app = router._app || (router._app = router.appRef || router.parent || null) || (router._app = require('express')());
+  const realQ = router.qRef || (router.qRef = router?.app?.locals?.q || router?.parent?.locals?.q || (router._attachedQ));
+  if (!realQ) throw new Error('analytics router: q() not attached via app.locals.q');
+  return realQ(sql, params);
 }
 
-// /api/analytics/pageviews?since=YYYY-MM-DD&groupBy=day
+// PAGEVIEWS (performance table: one row per page load)
+// GET /api/analytics/pageviews?since=YYYY-MM-DD&groupBy=day|hour
 router.get('/pageviews', async (req, res) => {
-  const since = req.query.since || new Date(Date.now()-14*86400e3).toISOString().slice(0,10);
-  const groupBy = req.query.groupBy || 'day';
-  let dateExpr = "DATE(ts)";
-  if (groupBy === 'hour') dateExpr = "DATE_TRUNC('hour', ts)";
-  if (groupBy === 'day')  dateExpr = "DATE(ts)";
+  const since = req.query.since || new Date(Date.now() - 14 * 86400e3).toISOString().slice(0,10);
+  const groupBy = (req.query.groupBy || 'day').toLowerCase();
+  const bucketSql = (groupBy === 'hour')
+    ? "DATE_FORMAT(FROM_UNIXTIME(ts/1000), '%Y-%m-%d %H:00:00')"
+    : "DATE(FROM_UNIXTIME(ts/1000))";
 
   const rows = await q(
-    `SELECT ${dateExpr} AS bucket, COUNT(*)::int AS count
-       FROM events
-      WHERE ts >= $1
-   GROUP BY 1
-   ORDER BY 1`,
+    `SELECT ${bucketSql} AS bucket, COUNT(*) AS cnt
+       FROM performance
+      WHERE FROM_UNIXTIME(ts/1000) >= ?
+   GROUP BY bucket
+   ORDER BY bucket`,
     [since]
   );
-  res.json({ points: rows.map(r => ({
-    date: (groupBy==='day') ? String(r.bucket).slice(0,10) : r.bucket,
-    ts: r.bucket, count: r.count
-  }))});
+
+  res.json({
+    points: rows.map(r => ({
+      date: (groupBy === 'day') ? String(r.bucket).slice(0,10) : undefined,
+      ts: r.bucket,
+      count: Number(r.cnt)
+    }))
+  });
 });
 
-// /api/analytics/top-routes?since=YYYY-MM-DD&limit=10
+// TOP ROUTES (which pages were loaded most)
+// GET /api/analytics/top-routes?since=YYYY-MM-DD&limit=10
 router.get('/top-routes', async (req, res) => {
-  const since = req.query.since || new Date(Date.now()-7*86400e3).toISOString().slice(0,10);
-  const limit = parseInt(req.query.limit||'10',10);
+  const since = req.query.since || new Date(Date.now() - 7 * 86400e3).toISOString().slice(0,10);
+  const limit = Math.max(1, Math.min(100, parseInt(req.query.limit || '10', 10)));
+
   const rows = await q(
-    `SELECT path AS route, COUNT(*)::int AS hits
-       FROM events
-      WHERE ts >= $1
-   GROUP BY path
+    `SELECT page AS route, COUNT(*) AS hits
+       FROM performance
+      WHERE FROM_UNIXTIME(ts/1000) >= ?
+   GROUP BY page
    ORDER BY hits DESC
-      LIMIT $2`,
+      LIMIT ?`,
     [since, limit]
   );
-  res.json({ routes: rows });
+
+  res.json({ routes: rows.map(r => ({ route: r.route || '(unknown)', hits: Number(r.hits) })) });
 });
 
-// /api/analytics/errors?since=YYYY-MM-DD
-// return either a flat list for dashboard grid or aggregated by endpoint for report
+// ERRORS (activity.kind='error')
+// GET /api/analytics/errors?since=YYYY-MM-DD
 router.get('/errors', async (req, res) => {
-  const since = req.query.since || new Date(Date.now()-1*86400e3).toISOString().slice(0,10);
+  const since = req.query.since || new Date(Date.now() - 1 * 86400e3).toISOString().slice(0,10);
 
-  // for dashboard grid recent errors list
   const flat = await q(
-    `SELECT path AS endpoint,
-            status::int AS status,
-            COUNT(*)::int AS count,
-            MAX(ts) AS lastSeen
-       FROM events
-      WHERE ts >= $1 AND status >= 400
-   GROUP BY endpoint, status
-   ORDER BY count DESC`,
+    `SELECT page AS endpoint,
+            COUNT(*) AS cnt,
+            MAX(FROM_UNIXTIME(ts/1000)) AS lastSeen
+       FROM activity
+      WHERE kind='error' AND FROM_UNIXTIME(ts/1000) >= ?
+   GROUP BY endpoint
+   ORDER BY cnt DESC`,
     [since]
   );
 
-  // for report table 7-day breakdown 4xx vs 5xx
   const agg = await q(
-    `SELECT path AS endpoint,
-            COUNT(*) FILTER (WHERE status BETWEEN 400 AND 499)::int AS "4xx",
-            COUNT(*) FILTER (WHERE status >= 500)::int AS "5xx",
-            COUNT(*)::int AS totalErrors,
-            MAX(ts) AS lastSeen
-       FROM events
-      WHERE ts >= $1 AND status >= 400
+    `SELECT page AS endpoint,
+            COUNT(*) AS totalErrors,
+            MAX(FROM_UNIXTIME(ts/1000)) AS lastSeen
+       FROM activity
+      WHERE kind='error' AND FROM_UNIXTIME(ts/1000) >= ?
    GROUP BY endpoint
    ORDER BY totalErrors DESC`,
     [since]
   );
 
-  res.json({ errors: flat, rows: agg });
+  res.json({
+    errors: flat.map(r => ({
+      endpoint: r.endpoint || '(unknown)',
+      status: '—',
+      count: Number(r.cnt),
+      lastSeen: r.lastSeen
+    })),
+    rows: agg.map(r => ({
+      endpoint: r.endpoint || '(unknown)',
+      '4xx': 0,
+      '5xx': 0,
+      totalErrors: Number(r.totalErrors),
+      lastSeen: r.lastSeen
+    }))
+  });
 });
 
-// /api/analytics/error-rate?since=YYYY-MM-DD&groupBy=hour
+// ERROR RATE: errors/hour ÷ pageviews/hour
+// GET /api/analytics/error-rate?since=YYYY-MM-DD&groupBy=hour|day
 router.get('/error-rate', async (req, res) => {
-  const since = req.query.since || new Date(Date.now()-7*86400e3).toISOString().slice(0,10);
-  const groupBy = req.query.groupBy || 'hour';
-  let bucketExpr = "DATE_TRUNC('hour', ts)";
-  if (groupBy === 'day') bucketExpr = "DATE(ts)";
+  const since = req.query.since || new Date(Date.now() - 7 * 86400e3).toISOString().slice(0,10);
+  const groupBy = (req.query.groupBy || 'hour').toLowerCase();
+  const bucketFmt = (groupBy === 'day') ? '%Y-%m-%d 00:00:00' : '%Y-%m-%d %H:00:00';
 
-  const rows = await q(
-    `WITH buckets AS (
-        SELECT ${bucketExpr} AS bucket,
-               COUNT(*)::int AS total,
-               COUNT(*) FILTER (WHERE status >= 400)::int AS errors
-          FROM events
-         WHERE ts >= $1
-      GROUP BY 1
-    )
-    SELECT bucket, total, errors FROM buckets ORDER BY bucket`,
-    [since]
+  const views = await q(
+    `SELECT DATE_FORMAT(FROM_UNIXTIME(ts/1000), ?) AS bucket, COUNT(*) AS total
+       FROM performance
+      WHERE FROM_UNIXTIME(ts/1000) >= ?
+   GROUP BY bucket
+   ORDER BY bucket`,
+    [bucketFmt, since]
   );
-  res.json({ points: rows.map(r => ({ ts: r.bucket, total: r.total, errors: r.errors })) });
+
+  const errs = await q(
+    `SELECT DATE_FORMAT(FROM_UNIXTIME(ts/1000), ?) AS bucket, COUNT(*) AS errors
+       FROM activity
+      WHERE kind='error' AND FROM_UNIXTIME(ts/1000) >= ?
+   GROUP BY bucket
+   ORDER BY bucket`,
+    [bucketFmt, since]
+  );
+
+  const map = new Map();
+  for (const v of views) map.set(v.bucket, { ts: v.bucket, total: Number(v.total), errors: 0 });
+  for (const e of errs) {
+    const row = map.get(e.bucket) || { ts: e.bucket, total: 0, errors: 0 };
+    row.errors += Number(e.errors);
+    map.set(e.bucket, row);
+  }
+
+  res.json({ points: Array.from(map.values()) });
 });
 
 module.exports = router;
