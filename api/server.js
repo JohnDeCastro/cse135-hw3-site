@@ -22,13 +22,17 @@ const pool = mysql.createPool({
     }
 });
 
-
-
-
 async function q(sql, params=[]) {
     const [rows] = await pool.query(sql, params);
     return rows;
 }
+
+// make q() available to routers
+app.locals.q = q;
+
+// mount analytics router
+const analyticsRouter = require('./routes/analytics');
+app.use('/api/analytics', analyticsRouter);
 
 // static
 app.get('/static', async (req,res)=> {
@@ -106,6 +110,83 @@ app.post('/activity', async (req,res)=> {
   );
 
   res.status(201).json({ id: result.insertId });
+});
+
+app.post('/json/events', async (req, res) => {
+  try {
+    const b = req.body || {};
+    const type = b.type;
+
+    if (!type) return res.status(400).json({ error: 'missing type' });
+
+    if (type === 'static') {
+      // payload from collector.js 'static' pushes
+      const p = b.payload || {};
+      const result = await q(
+        `INSERT INTO static (sessionId, ua, lang, cookies, jsEnabled, cssEnabled, imagesEnabled, screenW, screenH, windowW, windowH, connection, page, ts)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          b.sessionId, p.ua, p.lang, !!p.cookies, !!p.jsEnabled, !!p.cssEnabled, !!p.imagesEnabled,
+          p.screen?.w ?? null, p.screen?.h ?? null, p.window?.w ?? null, p.window?.h ?? null,
+          p.connection ?? null, b.page ?? null, b.ts || Date.now()
+        ]
+      );
+      return res.status(201).json({ id: result.insertId, ok: true });
+    }
+
+    if (type === 'perf') {
+      const p = b.payload || {};
+      const result = await q(
+        `INSERT INTO performance (sessionId, page, start_ms, end_ms, total_ms, raw, ts)
+         VALUES (?,?,?,?,?,?,?)`,
+        [
+          b.sessionId, b.page,
+          p.start ?? null, p.end ?? null, p.total ?? null,
+          JSON.stringify(p.timing || {}),
+          b.ts || Date.now()
+        ]
+      );
+      return res.status(201).json({ id: result.insertId, ok: true });
+    }
+
+    if (type === 'activity') {
+      const p = b.payload || {};
+      // normalize button
+      let btn = null;
+      if (typeof p.button === 'number') btn = p.button;
+      else if (typeof p.button === 'string') {
+        const map = { left: 0, middle: 1, right: 2 };
+        btn = map[p.button.toLowerCase()] ?? null;
+      }
+      const result = await q(
+        `INSERT INTO activity (sessionId, page, kind, subtype, x, y, button, scrollX, scrollY, keyText, idleDurationMs, msg, stack, ts)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          b.sessionId,
+          b.page,
+          p.kind ?? null,
+          (p.type ?? p.subtype ?? null),
+          (p.x ?? null),
+          (p.y ?? null),
+          btn,
+          (p.x ?? p.scrollX ?? null),
+          (p.y ?? p.scrollY ?? null),
+          (p.key ?? p.keyText ?? null),
+          (p.durationMs ?? p.idleDurationMs ?? null),
+          (p.msg ?? null),
+          (p.stack ?? null),
+          b.ts || Date.now()
+        ]
+      );
+      return res.status(201).json({ id: result.insertId, ok: true });
+    }
+
+    // unknown type
+    return res.status(400).json({ error: 'unknown event type' });
+  } catch (e) {
+    console.error('ingest error', e);
+    return res.status(500).json({ error: 'server error' });
+  }
 });
 
 app.get('/health', (_,res)=> res.json({ok:true}));
