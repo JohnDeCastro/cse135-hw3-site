@@ -35,4 +35,29 @@ Obscure Server Identity (part 3 step 6):
    to .site.conf and .site-le-ssl.conf. this removed default server header
 3. restarted apache, verified change in both curl and dev tools that server reflected change.
 -----------------------
+Dashboard
 
+Live dashboard: [reporting.johndecastro.site](https://reporting.johndecastro.site)  
+Detailed report (Errors): [reporting.johndecastro.site/errors.html](https://reporting.johndecastro.site/errors.html)
+
+Metrics + Visualizations
+- **Pageviews over time** → *Line chart*  
+  - Chosen because line charts highlight trends in time-series data.  
+  - Answers: “Is traffic rising/falling? Are there spikes?”  
+
+- **Top routes** → *Bar chart*  
+  - Bar chart is best for comparing discrete categories (routes/pages).  
+  - Answers: “Which pages get the most traffic?”  
+
+- **Recent errors** → *Table (grid)*  
+  - Tabular layout makes detailed error counts easy to scan.  
+  - Answers: “Which endpoints are failing, and when?”  
+
+- **Error rate over time** → *Line chart*  
+  - Complements the table by showing error spikes vs. normal baseline.  
+
+Design Decisions
+- **3 different metrics** (pageviews, top routes, errors) with **3 different presentations** (line, bar, grid).  
+- Charts chosen to match the data shape (time-series → line, categories → bar, details → table).  
+- Dashboard is client-side (HTML/JS + chart.js) and fetches data via the `/api/analytics/*` endpoints.  
+- Layout uses a simple responsive grid with cards for readability.  
