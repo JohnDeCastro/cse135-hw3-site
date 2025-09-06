@@ -108,11 +108,11 @@
     <section class="card">
       <h2>Discussion</h2>
       <p>
-        The chart shows when error rate spikes occur, helping correlate incidents with deploys or traffic surges.
-        The grid highlights problematic endpoints and whether failures are client (4xx) or server (5xx) issues.
-        If most errors are 5xx on a single endpoint (e.g., <code>/api/checkout</code>), prioritize backend stability and
+        The charts purpose is to show when error rate spikes occur, helping us connect incidents with deploys or traffic surges.
+        The grid highlights problematic endpoints and whether failures are client (4xx status codes) or server (5xx status codes) related issues.
+        If most errors are 5xx on a single endpoint (e.g., <code>/api/checkout</code>), we need to prioritize backend stability and
         add retries/circuit breakers.
-        If 4xx dominates on <code>/api/login</code>, improve validation and client-side UX to reduce bad requests.
+        If 4xx codes occur on <code>/api/login</code>, improve validation and client-side UX to reduce bad requests.
       </p>
     </section>
   </main>
