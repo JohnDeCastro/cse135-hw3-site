@@ -14,7 +14,7 @@ app.use(express.json());
 // ---------- deterministic env loading ----------
 const ENV_CANDIDATES = [
   '/etc/hw3-api.env',                // server override (not in git)
-  path.join(__dirname, '.env'),      // local copy (copied from /etc if you did that)
+  path.join(__dirname, '.env'),      // local copy 
 ];
 
 let loadedFrom = null;
@@ -30,7 +30,7 @@ if (!loadedFrom) {
   console.warn('WARN: No env file found; relying on process env only');
 }
 
-// ---------- single pool config (so we can log exactly what we dial) ----------
+// ---------- single pool config ----------
 const poolConfig = {
   host: process.env.DB_HOST,
   port: Number(process.env.DB_PORT || 25060),
@@ -96,7 +96,7 @@ app.get('/debug/db', async (req, res) => {
 });
 
 // ---------- analytics router (MySQL version) ----------
-const analyticsRouter = require('./routes/analytics'); // your current MySQL-based router
+const analyticsRouter = require('./routes/analytics'); 
 app.use('/api/analytics', analyticsRouter);
 app.use('/analytics', analyticsRouter);
 
