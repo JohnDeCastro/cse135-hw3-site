@@ -61,3 +61,22 @@ Design Decisions
 - Charts chosen to match the data shape (time-series → line, categories → bar, details → table).  
 - Dashboard is client-side (HTML/JS + chart.js) and fetches data via the `/api/analytics/*` endpoints.  
 - Layout uses a simple responsive grid with cards for readability.  
+-----------------------
+Report
+
+For my detailed report, I selected **Errors** as the metric of focus.  
+My question was: *“Which endpoints are causing errors, and how has the error rate changed over time?”*  
+
+I chose this metric because reliability and stability are key characteristics of any system. Errors directly impact users directly and user trust + functionality, so analyzing them gives meaningful insights for improvement.
+
+- **Error Rate Over Time (Line Chart):**  
+  I used a line chart (via chart.js) to display error percentage over time. I'd consider a line chart appropriate here because it shows changes and trends clearly, making it easy to spot spikes that may be correlated with deployments or traffic surges.  
+
+- **Errors by Endpoint (Grid):**  
+  I used a grid (HTML table) to list each endpoint, the number of errors, a breakdown of client vs server errors, and when the errors were last observed. A grid was the best choice because users need exact values, structured data, and the ability to compare across endpoints.  
+
+- **Discussion:**  
+  Together, the chart and table help identify whether problems are systemic (spikes across all endpoints) or localized (a single endpoint with many 5xx errors). If errors cluster around one endpoint, developers should prioritize fixing backend logic. If errors are mostly 4xx on login or forms, UX improvements and better validation may be needed.  
+
+This detailed report demonstrates not only the error trends but also actionable insights for improving system reliability.
+
